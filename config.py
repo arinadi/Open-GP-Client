@@ -1,4 +1,4 @@
-"""Configuration persistence for Open GP."""
+"""Configuration persistence for Open GP Client."""
 
 import json
 import os

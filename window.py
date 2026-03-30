@@ -1,4 +1,4 @@
-"""Main window for Open GP — GNOME GlobalProtect VPN Client."""
+"""Main window for Open GP Client — GNOME GlobalProtect VPN Client."""
 
 import threading
 
@@ -23,7 +23,7 @@ class OpenGPWindow(Adw.ApplicationWindow):
         self.client = GPClient()
         self._vpn_thread: threading.Thread | None = None
 
-        self.set_title("Open GP")
+        self.set_title("Open GP Client")
         self.set_default_size(300, 420)
         self.set_resizable(False)
 
@@ -40,7 +40,7 @@ class OpenGPWindow(Adw.ApplicationWindow):
         # --- Header Bar ---
         header = Adw.HeaderBar()
         header.set_show_title(True)
-        header.set_title_widget(Gtk.Label(label="Open GP"))
+        header.set_title_widget(Gtk.Label(label="Open GP Client"))
 
         # Hamburger menu
         menu_model = Gio.Menu()

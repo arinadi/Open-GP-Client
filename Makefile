@@ -101,7 +101,7 @@ deb:
 	@echo 'Package: $(APP_NAME)' > /tmp/$(APP_NAME)_$(VERSION)/DEBIAN/control
 	@echo 'Version: $(VERSION)' >> /tmp/$(APP_NAME)_$(VERSION)/DEBIAN/control
 	@echo 'Architecture: all' >> /tmp/$(APP_NAME)_$(VERSION)/DEBIAN/control
-	@echo 'Maintainer: Open GP' >> /tmp/$(APP_NAME)_$(VERSION)/DEBIAN/control
+	@echo 'Maintainer: Open GP Client' >> /tmp/$(APP_NAME)_$(VERSION)/DEBIAN/control
 	@echo 'Depends: python3, python3-gi, gir1.2-gtk-4.0, gir1.2-adw-1' >> /tmp/$(APP_NAME)_$(VERSION)/DEBIAN/control
 	@echo 'Description: GNOME GlobalProtect VPN Client' >> /tmp/$(APP_NAME)_$(VERSION)/DEBIAN/control
 	@echo ' A lightweight GNOME desktop client for GlobalProtect VPN.' >> /tmp/$(APP_NAME)_$(VERSION)/DEBIAN/control

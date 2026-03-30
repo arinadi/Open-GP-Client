@@ -1,4 +1,5 @@
-"""Adw.Application subclass for Open GP."""
+"""Adw.Application subclass for Open GP Client."""
+
 
 import gi
 

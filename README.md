@@ -45,7 +45,7 @@ python3 -m gp_connect
 sudo make install
 ```
 
-Then search **"Open GP"** in GNOME Activities and click the icon.
+Then search **"Open GP Client"** in GNOME Activities and click the icon.
 
 ### Uninstall
 ```bash
