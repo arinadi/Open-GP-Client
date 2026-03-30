@@ -2,6 +2,8 @@ APP_NAME      = open-gp-client
 MAJOR_VERSION = 1
 COMMIT_COUNT  = $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
 VERSION       = $(MAJOR_VERSION).$(COMMIT_COUNT)
+# Dynamic release based on timestamp for local build uniqueness
+RELEASE_SUFFIX = $(shell date +%H%M%S)
 
 DESTDIR    ?=
 PREFIX     ?= /usr/local
@@ -11,7 +13,7 @@ DESKTOP_DIR = $(PREFIX)/share/applications
 ICON_DIR    = $(PREFIX)/share/icons/hicolor/512x512/apps
 PYTHON_SRC  = __init__.py __main__.py app.py window.py client.py config.py
 
-.PHONY: install uninstall rpm deb clean
+.PHONY: install uninstall cleanup-legacy rpm deb clean
 
 # ─── Install / Uninstall ──────────────────────────────────────────
 
@@ -46,6 +48,17 @@ uninstall:
 	[ -z "$(DESTDIR)" ] && update-desktop-database $(DESKTOP_DIR) 2>/dev/null || true
 	@echo "✅ Uninstalled."
 
+# Deep clean for any old/manual installations
+cleanup-legacy:
+	@echo "Cleaning up legacy /usr/local or old-style installations (requires sudo)..."
+	rm -rf /usr/local/lib/$(APP_NAME)
+	rm -rf /usr/local/lib/python3/dist-packages/open_gp_client
+	rm -f /usr/local/bin/$(APP_NAME)
+	rm -f /usr/local/share/applications/$(APP_NAME).desktop
+	rm -f /usr/local/share/icons/hicolor/512x512/apps/$(APP_NAME).png
+	update-desktop-database /usr/local/share/applications 2>/dev/null || true
+	@echo "✅ Legacy cleanup complete. Now run 'make rpm' and reinstall."
+
 # ─── RPM Build (Fedora) ──────────────────────────────────────────
 
 rpm:
@@ -59,7 +72,7 @@ rpm:
 	@# Generate spec
 	@echo 'Name:           $(APP_NAME)' > ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo 'Version:        $(VERSION)' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
-	@echo 'Release:        1%{?dist}' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
+	@echo 'Release:        1.$(RELEASE_SUFFIX)%{?dist}' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo 'Summary:        GNOME GlobalProtect VPN Client' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo 'License:        GPL-3.0' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo 'BuildArch:      noarch' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
