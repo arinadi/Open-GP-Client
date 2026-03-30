@@ -50,14 +50,19 @@ uninstall:
 
 # Deep clean for any old/manual installations
 cleanup-legacy:
-	@echo "Cleaning up legacy /usr/local or old-style installations (requires sudo)..."
+	@echo "Cleaning up legacy /usr/local or old-style installations (requires sudo for some regions)..."
 	rm -rf /usr/local/lib/$(APP_NAME)
 	rm -rf /usr/local/lib/python3/dist-packages/open_gp_client
 	rm -f /usr/local/bin/$(APP_NAME)
 	rm -f /usr/local/share/applications/$(APP_NAME).desktop
 	rm -f /usr/local/share/icons/hicolor/512x512/apps/$(APP_NAME).png
+	@# Clean up user-local legacy entries
+	rm -f $(HOME)/.local/share/applications/open-gp.desktop
+	rm -f $(HOME)/.local/share/applications/$(APP_NAME).desktop
+	@# Refresh databases
 	update-desktop-database /usr/local/share/applications 2>/dev/null || true
-	@echo "✅ Legacy cleanup complete. Now run 'make rpm' and reinstall."
+	update-desktop-database $(HOME)/.local/share/applications 2>/dev/null || true
+	@echo "✅ Legacy cleanup complete. Now run 'make rpm' and reinstall if needed."
 
 # ─── RPM Build (Fedora) ──────────────────────────────────────────
 
