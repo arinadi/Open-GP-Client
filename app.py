@@ -37,7 +37,7 @@ class OpenGPApp(Adw.Application):
         """Show about dialog."""
         about = Adw.AboutDialog(
             application_name=__app_name__,
-            application_icon="network-vpn",
+            application_icon="open-gp-client",
             version=__version__,
             developer_name="Open GP",
             comments="A GNOME client for GlobalProtect VPN.\nWraps gpclient/gpauth CLI tools.",
