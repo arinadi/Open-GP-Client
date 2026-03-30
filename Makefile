@@ -17,15 +17,15 @@ PYTHON_SRC  = __init__.py __main__.py app.py window.py client.py config.py
 
 install:
 	@echo "Installing $(APP_NAME) to $(DESTDIR)$(INSTALL_DIR)..."
-	install -d $(DESTDIR)$(INSTALL_DIR)
-	install -m 644 $(PYTHON_SRC) $(DESTDIR)$(INSTALL_DIR)/
+	@# Install Python source to private directory
+	install -d $(DESTDIR)$(INSTALL_DIR)/open_gp_client
+	install -m 644 $(PYTHON_SRC) $(DESTDIR)$(INSTALL_DIR)/open_gp_client/
+	@# Create wrapper script with explicit PYTHONPATH
 	install -d $(DESTDIR)$(BIN_DIR)
 	@echo '#!/bin/sh' > $(DESTDIR)$(BIN_DIR)/$(APP_NAME)
+	@echo 'export PYTHONPATH="$(INSTALL_DIR):$$PYTHONPATH"' >> $(DESTDIR)$(BIN_DIR)/$(APP_NAME)
 	@echo 'exec python3 -m open_gp_client "$$@"' >> $(DESTDIR)$(BIN_DIR)/$(APP_NAME)
 	chmod 755 $(DESTDIR)$(BIN_DIR)/$(APP_NAME)
-	@# Python package wrapper logic
-	install -d $(DESTDIR)$(PREFIX)/lib/python3/dist-packages/open_gp_client
-	install -m 644 $(PYTHON_SRC) $(DESTDIR)$(PREFIX)/lib/python3/dist-packages/open_gp_client/
 	@# Desktop and Icon
 	install -Dm 644 open-gp-client.desktop $(DESTDIR)$(DESKTOP_DIR)/$(APP_NAME).desktop
 	install -Dm 644 open-gp-client.png $(DESTDIR)$(ICON_DIR)/$(APP_NAME).png
@@ -40,7 +40,6 @@ install:
 uninstall:
 	@echo "Removing $(APP_NAME)..."
 	rm -rf $(DESTDIR)$(INSTALL_DIR)
-	rm -rf $(DESTDIR)$(PREFIX)/lib/python3/dist-packages/open_gp_client
 	rm -f $(DESTDIR)$(BIN_DIR)/$(APP_NAME)
 	rm -f $(DESTDIR)$(DESKTOP_DIR)/$(APP_NAME).desktop
 	rm -f $(DESTDIR)$(ICON_DIR)/$(APP_NAME).png
@@ -86,7 +85,6 @@ rpm:
 	@echo '' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo '%files' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo '/usr/lib/$(APP_NAME)/' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
-	@echo '/usr/lib/python3/dist-packages/open_gp_client/' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo '/usr/bin/$(APP_NAME)' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo '/usr/share/applications/$(APP_NAME).desktop' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
 	@echo '/usr/share/icons/hicolor/512x512/apps/$(APP_NAME).png' >> ~/rpmbuild/SPECS/$(APP_NAME).spec
