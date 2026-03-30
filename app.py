@@ -40,7 +40,7 @@ class OpenGPApp(Adw.Application):
             application_name=__app_name__,
             application_icon="open-gp-client",
             version=__version__,
-            developer_name="Open GP",
+            developer_name="Open GP Client",
             comments="A GNOME client for GlobalProtect VPN.\nWraps gpclient/gpauth CLI tools.",
             website="https://github.com/yuezk/GlobalProtect-openconnect",
             license_type=3,  # GPL-3.0
