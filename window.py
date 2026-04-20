@@ -159,6 +159,7 @@ class OpenGPWindow(Gtk.ApplicationWindow):
         # Version label at bottom
         import open_gp_client
         version_label = Gtk.Label(label=f"v{open_gp_client.__version__}")
+        version_label.set_halign(Gtk.Align.START)
         version_label.add_css_class("dim-label")
         version_label.add_css_class("caption")
         main_box.append(version_label)
