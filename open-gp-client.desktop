@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Open GP Client
-Comment=GlobalProtect VPN Client for GNOME
-Exec=env PYTHONPATH=/mnt/DATA/EDNA python3 -m open_gp_client
+Comment=GlobalProtect VPN Client
+Exec=open-gp-client
 Icon=network-vpn
 Type=Application
 Categories=Network;System;

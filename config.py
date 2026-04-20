@@ -9,11 +9,10 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG = {
     "portal": "netportal.gameloft.com",
-    "browser": "default",
+    "browser": "built-in",
     "fix_openssl": False,
     "ignore_tls_errors": False,
 }
-
 
 class Config:
     """Manages app configuration with JSON persistence."""

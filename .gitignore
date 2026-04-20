@@ -19,5 +19,7 @@ coverage.xml
 *.cover
 *.log
 .pytest_cache/
+bin/
+GlobalProtect-openconnect/
 /tmp/
 ~/rpmbuild/

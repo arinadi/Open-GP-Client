@@ -1,25 +1,33 @@
-"""Main window for Open GP Client — GNOME GlobalProtect VPN Client."""
+"""Main window for Open GP Client — Generic GTK GlobalProtect VPN Client."""
 
 import threading
 
 import gi
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gio, GLib, Gtk, Pango  # noqa: E402
+from gi.repository import Gio, GLib, Gtk, Pango  # noqa: E402
 
-from .client import GPClient, VPNState  # noqa: E402
+from .client import GPClient, VPNState
+import logging
+
+logger = logging.getLogger("open-gp-client.window")
+  # noqa: E402
 from .config import Config  # noqa: E402
 
 
-class OpenGPWindow(Adw.ApplicationWindow):
+class OpenGPWindow(Gtk.ApplicationWindow):
     """Main application window mimicking the GP Connect GUI style."""
 
     def __init__(self, **kwargs):
+        logger.debug("Initializing OpenGPWindow")
         super().__init__(**kwargs)
+        self.set_title("Open GP Client")
+        self.set_default_size(500, 400)
 
+        logger.debug("Loading config")
         self.config = Config()
+        logger.debug("Initializing GPClient")
         self.client = GPClient()
         self._vpn_thread: threading.Thread | None = None
 
@@ -27,35 +35,24 @@ class OpenGPWindow(Adw.ApplicationWindow):
         self.set_default_size(300, 420)
         self.set_resizable(False)
 
-        # Check initial state
-        if self.client.is_connected():
-            self.client._state = VPNState.CONNECTED
-
         self._build_ui()
         self._sync_ui_to_state()
+        logger.debug("OpenGPWindow initialization complete. No auto-connect should happen.")
+        
+        # Prevent accidental clicks from leaked Enter keypresses when launching via terminal
+        GLib.timeout_add(500, self._set_ready)
+
+    def _set_ready(self):
+        self._is_ready = True
+        return False
 
     def _build_ui(self):
         """Construct the full widget tree."""
 
         # --- Header Bar ---
-        header = Adw.HeaderBar()
-        header.set_show_title(True)
-        header.set_title_widget(Gtk.Label(label="Open GP Client"))
-
-        # Hamburger menu
-        menu_model = Gio.Menu()
-        menu_model.append("About", "app.about")
-        menu_button = Gtk.MenuButton()
-        menu_button.set_icon_name("open-menu-symbolic")
-        menu_button.set_menu_model(menu_model)
-        header.pack_start(menu_button)
-
-        # Minimize button
-        minimize_btn = Gtk.Button()
-        minimize_btn.set_icon_name("window-minimize-symbolic")
-        minimize_btn.set_tooltip_text("Minimize")
-        minimize_btn.connect("clicked", lambda _: self.minimize())
-        header.pack_end(minimize_btn)
+        header = Gtk.HeaderBar()
+        header.set_show_title_buttons(True)
+        self.set_titlebar(header)
 
         # --- Main Content ---
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -160,31 +157,55 @@ class OpenGPWindow(Adw.ApplicationWindow):
         main_box.append(spacer)
 
         # Version label at bottom
-        version_label = Gtk.Label(label="v1.0.0")
+        import open_gp_client
+        version_label = Gtk.Label(label=f"v{open_gp_client.__version__}")
         version_label.add_css_class("dim-label")
         version_label.add_css_class("caption")
         main_box.append(version_label)
 
         # --- Assemble ---
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        content_box.append(header)
         content_box.append(main_box)
-        self.set_content(content_box)
+        self.set_child(content_box)
 
         # --- CSS ---
         css_provider = Gtk.CssProvider()
         css_provider.load_from_string("""
+            .title { font-weight: bold; }
+            .title-3 { font-size: 1.2rem; font-weight: bold; }
+            .dim-label { opacity: 0.55; }
+            .caption { font-size: 0.85rem; }
+            .card {
+                background-color: alpha(currentColor, 0.05);
+                border-radius: 8px;
+                border: 1px solid alpha(currentColor, 0.1);
+            }
+            .pill { border-radius: 9999px; }
+            .suggested-action {
+                background-color: @accent_bg_color;
+                color: @accent_fg_color;
+            }
+            .destructive-action {
+                background-color: @error_bg_color;
+                color: @error_fg_color;
+            }
+            @keyframes pulse {
+                0% { opacity: 1.0; }
+                50% { opacity: 0.4; }
+                100% { opacity: 1.0; }
+            }
             .shield-icon {
                 color: @accent_color;
             }
             .shield-icon.disconnected {
-                color: alpha(@window_fg_color, 0.4);
+                color: alpha(currentColor, 0.4);
             }
             .shield-icon.connected {
                 color: @success_color;
             }
             .shield-icon.connecting {
                 color: @warning_color;
+                animation: pulse 1.5s ease-in-out infinite;
             }
             .shield-icon.error {
                 color: @error_color;
@@ -238,7 +259,7 @@ class OpenGPWindow(Adw.ApplicationWindow):
 
             case VPNState.CONNECTING:
                 self.status_label.set_text("Connecting...")
-                self.shield_icon.set_from_icon_name("network-vpn-acquiring-symbolic")
+                self.shield_icon.set_from_icon_name("security-medium-symbolic")
                 self.shield_icon.add_css_class("connecting")
                 self.action_button.set_label("Cancel")
                 self.action_button.remove_css_class("suggested-action")
@@ -259,7 +280,7 @@ class OpenGPWindow(Adw.ApplicationWindow):
 
             case VPNState.DISCONNECTING:
                 self.status_label.set_text("Disconnecting...")
-                self.shield_icon.set_from_icon_name("network-vpn-acquiring-symbolic")
+                self.shield_icon.set_from_icon_name("security-medium-symbolic")
                 self.shield_icon.add_css_class("connecting")
                 self.action_button.set_sensitive(False)
                 self.portal_entry.set_sensitive(False)
@@ -276,7 +297,12 @@ class OpenGPWindow(Adw.ApplicationWindow):
 
     def _on_action_clicked(self, button):
         """Handle Connect/Disconnect/Cancel button click."""
+        if not getattr(self, "_is_ready", False):
+            logger.debug("Action button clicked but window is not ready yet. Ignoring.")
+            return
+
         state = self.client.state
+        logger.debug(f"Action button clicked. Current state: {state}")
 
         if state in (VPNState.DISCONNECTED, VPNState.ERROR):
             self._start_connect()
@@ -285,6 +311,8 @@ class OpenGPWindow(Adw.ApplicationWindow):
 
     def _start_connect(self):
         """Begin the connect flow in a background thread."""
+        import traceback
+        logger.debug("Starting connection flow. Traceback:\n%s", "".join(traceback.format_stack()))
         portal = self.portal_entry.get_text().strip()
         if not portal:
             self._append_log("Error: Portal address is empty.")

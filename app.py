@@ -1,21 +1,36 @@
-"""Adw.Application subclass for Open GP Client."""
-
-
 import gi
 
 gi.require_version("Gtk", "4.0")
-gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gio, GLib  # noqa: E402
+import sys
+import logging
+from gi.repository import Gio, GLib, Gtk  # noqa: E402
+
+# Configure logging to stdout
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger("open-gp-client")
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = handle_exception
 
 from . import __app_id__, __app_name__, __version__  # noqa: E402
 from .window import OpenGPWindow  # noqa: E402
 
 
-class OpenGPApp(Adw.Application):
-    """Main application class — single instance, GNOME integrated."""
+class OpenGPApp(Gtk.Application):
+    """Main application class — generic GTK version."""
 
     def __init__(self):
+        logger.debug("Initializing OpenGPApp")
         super().__init__(
             application_id=__app_id__,
             flags=Gio.ApplicationFlags.DEFAULT_FLAGS,
@@ -29,20 +44,24 @@ class OpenGPApp(Adw.Application):
 
     def do_activate(self):
         """Called when the application is activated."""
+        logger.debug("Application activated")
         win = self.props.active_window
         if not win:
+            logger.debug("Creating new window")
             win = OpenGPWindow(application=self)
         win.present()
+        logger.debug("Window presented")
 
     def _on_about(self, action, param):
         """Show about dialog."""
-        about = Adw.AboutDialog(
-            application_name=__app_name__,
-            application_icon="open-gp-client",
+        about = Gtk.AboutDialog(
+            program_name=__app_name__,
+            logo_icon_name="open-gp-client",
             version=__version__,
-            developer_name="Open GP Client",
-            comments="A GNOME client for GlobalProtect VPN.\nWraps gpclient/gpauth CLI tools.",
+            authors=["Open GP Client Team"],
+            comments="A generic GTK client for GlobalProtect VPN.\nWraps gpclient/gpauth CLI tools.",
             website="https://github.com/yuezk/GlobalProtect-openconnect",
-            license_type=3,  # GPL-3.0
+            license_type=Gtk.License.GPL_3_0,
         )
-        about.present(self.props.active_window)
+        about.set_transient_for(self.props.active_window)
+        about.present()

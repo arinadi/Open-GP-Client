@@ -10,6 +10,11 @@ import shutil
 import signal
 import subprocess
 import threading
+import logging
+import sys
+from pathlib import Path
+
+logger = logging.getLogger("open-gp-client.client")
 
 # Regex to strip ANSI escape sequences from terminal output
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\].*?\x07")
@@ -33,19 +38,25 @@ class GPClient:
     """Wraps gpclient/gpauth CLI tools for VPN management."""
 
     def __init__(self):
+        logger.debug("Initializing GPClient instance")
         self._process: subprocess.Popen | None = None
         self._auth_process: subprocess.Popen | None = None
         self._master_fd: int | None = None
         self._state = VPNState.DISCONNECTED
         self._lock = threading.Lock()
 
-        # Verify binaries exist
-        self._gpclient = shutil.which("gpclient")
-        self._gpauth = shutil.which("gpauth")
+        # Find binaries: prefer local bundled ones, fallback to system PATH
+        self._bin_dir = Path(__file__).parent.parent / "bin"
+        local_gpclient = self._bin_dir / "gpclient"
+        local_gpauth = self._bin_dir / "gpauth"
+
+        self._gpclient = str(local_gpclient) if local_gpclient.exists() else shutil.which("gpclient")
+        self._gpauth = str(local_gpauth) if local_gpauth.exists() else shutil.which("gpauth")
+
         if not self._gpclient:
-            raise FileNotFoundError("gpclient not found. Install GlobalProtect-openconnect first.")
+            raise FileNotFoundError("gpclient not found. Bundle it in bin/ or install GlobalProtect-openconnect.")
         if not self._gpauth:
-            raise FileNotFoundError("gpauth not found. Install GlobalProtect-openconnect first.")
+            raise FileNotFoundError("gpauth not found. Bundle it in bin/ or install GlobalProtect-openconnect.")
 
     @property
     def state(self) -> VPNState:
@@ -77,35 +88,46 @@ class GPClient:
 
         try:
             # Step 1: Authenticate
+            # Per official docs: gpauth <portal> --browser 2>/dev/null | sudo gpclient connect <portal> --cookie-on-stdin
+            # gpauth writes the COOKIE to stdout, and all log messages to stderr.
             _set_state(VPNState.AUTHENTICATING)
             _log(f"Authenticating to {server}...")
 
-            auth_cmd = [self._gpauth, server, "--browser", browser]
+            auth_cmd = [self._gpauth, server]
+            if browser and browser != "built-in":
+                auth_cmd.extend(["--browser", browser])
             if fix_openssl:
                 auth_cmd.append("--fix-openssl")
             if ignore_tls_errors:
                 auth_cmd.append("--ignore-tls-errors")
 
             _log(f"Running: {' '.join(auth_cmd)}")
+            logger.debug(f"Executing: {' '.join(auth_cmd)}")
 
             self._auth_process = subprocess.Popen(
                 auth_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,  # Cookie comes out here
+                stderr=None,             # Let stderr (logs) print directly to our terminal
                 text=True,
                 env={**os.environ, "DISPLAY": os.environ.get("DISPLAY", ":0")},
             )
 
-            cookie, _ = self._auth_process.communicate()
+            logger.debug("Waiting for gpauth to produce cookie on stdout...")
+            # gpauth will exit after writing the cookie to stdout
+            cookie_output, _ = self._auth_process.communicate()
             auth_rc = self._auth_process.returncode
             self._auth_process = None
 
-            if auth_rc != 0 or not cookie.strip():
-                _log(f"Authentication failed (exit code {auth_rc})")
+            cookie = cookie_output.strip() if cookie_output else ""
+            logger.debug(f"gpauth exit code: {auth_rc}, cookie length: {len(cookie)}")
+
+            if auth_rc != 0 or not cookie:
+                logger.error(f"Auth failed. RC={auth_rc}, cookie found={bool(cookie)}")
+                _log(f"Authentication failed (exit code {auth_rc}). Check terminal for gpauth logs.")
                 _set_state(VPNState.ERROR)
                 return
 
-            cookie = cookie.strip()
+            logger.debug("Auth successful, cookie obtained.")
             _log("Authentication successful. Connecting VPN...")
 
             # Step 2: Connect via PTY (gpclient needs a TTY)
@@ -229,29 +251,34 @@ class GPClient:
                 self._auth_process = None
                 _log("Authentication cancelled.")
 
-            # Send disconnect command first (gpclient runs as root)
-            _log("Disconnecting VPN...")
-            result = subprocess.run(
-                ["pkexec", self._gpclient, "disconnect"],
-                capture_output=True, text=True, timeout=15,
-            )
-            if result.stdout and result.stdout.strip():
-                _log(result.stdout.strip())
-
-            # If the connect process is still alive, kill it via pkexec
+            # Send Ctrl+C to the PTY to gracefully terminate gpclient
+            # This avoids the need for ANY pkexec password prompts during disconnect!
             if self._process and self._process.poll() is None:
-                pid = self._process.pid
+                _log("Sending graceful termination signal...")
+                if self._master_fd is not None:
+                    try:
+                        os.write(self._master_fd, b"\x03")
+                    except OSError:
+                        pass
+
+                # Wait up to 5 seconds for it to exit cleanly
                 try:
+                    self._process.wait(timeout=5.0)
+                    _log("VPN disconnected gracefully.")
+                except subprocess.TimeoutExpired:
+                    _log("Graceful termination timed out. Force disconnecting...")
+                    # Fallback to pkexec gpclient disconnect
                     subprocess.run(
-                        ["pkexec", "kill", "-TERM", str(pid)],
-                        timeout=5, capture_output=True,
+                        ["pkexec", self._gpclient, "disconnect"],
+                        capture_output=True, text=True, timeout=10,
                     )
-                    self._process.wait(timeout=5)
-                except (subprocess.TimeoutExpired, Exception):
-                    subprocess.run(
-                        ["pkexec", "kill", "-9", str(pid)],
-                        timeout=5, capture_output=True,
-                    )
+                    
+                    if self._process.poll() is None:
+                        # Hard kill if still alive
+                        pid = self._process.pid
+                        subprocess.run(["pkexec", "kill", "-9", str(pid)], timeout=5, capture_output=True)
+                        self._process.wait(timeout=2.0)
+                
                 self._process = None
 
             self._close_master()
