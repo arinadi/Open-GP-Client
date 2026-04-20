@@ -165,6 +165,7 @@ class GPClient:
             # Read output from master fd and stream to GUI
             connected = False
             gateway_selected = False
+            already_running = False
             buf = b""
             while True:
                 try:
@@ -196,8 +197,14 @@ class GPClient:
                                     if not connected:
                                         connected = True
                                         _set_state(VPNState.CONNECTED)
+                                elif "already running" in lower:
+                                    # If another instance is running, we are already connected!
+                                    if not connected:
+                                        connected = True
+                                        already_running = True
+                                        _set_state(VPNState.CONNECTED)
                     elif self._process.poll() is not None:
-                        # Process exited, drain remaining
+                        # Process exited
                         break
                 except OSError as e:
                     if e.errno == errno.EIO:
@@ -214,14 +221,17 @@ class GPClient:
             self._close_master()
             self._process = None
 
-            if rc == 0 and connected:
+            if rc == 0 and connected and not already_running:
                 _log("VPN session ended cleanly.")
             elif rc == -signal.SIGTERM or rc == -signal.SIGINT:
                 _log("VPN disconnected.")
+            elif already_running:
+                _log("Attached to existing background VPN session.")
             else:
                 _log(f"VPN process exited with code {rc}")
 
-            _set_state(VPNState.DISCONNECTED)
+            if not already_running:
+                _set_state(VPNState.DISCONNECTED)
 
         except Exception as e:
             _log(f"Error: {e}")
